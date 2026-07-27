@@ -1,8 +1,13 @@
 #include "tensor.h"
+#include "iterator.h"
+#include "memory.h"
 
-#include <stdlib.h>
-#include <string.h>
-size_t Tensor_ElementSize(B_DataType type)
+/*==========================
+        Utilities
+==========================*/
+
+size_t
+Tensor_ElementSize(B_DataType type)
 {
     switch (type)
     {
@@ -25,80 +30,212 @@ size_t Tensor_ElementSize(B_DataType type)
             return 0;
     }
 }
-size_t Tensor_Numel(const Tensor *tensor)
+
+/*==========================
+        Information
+==========================*/
+
+size_t
+Tensor_Numel(const Tensor* tensor)
 {
     size_t numel = 1;
 
-    for (size_t i = 0; i < tensor->ndim; i++)
-        numel *= tensor->shape[i];
+    for (size_t i = 0; i < tensor->shape.ndim; i++)
+    {
+        numel *= tensor->shape.dims[i];
+    }
 
     return numel;
 }
 
-size_t Tensor_Rank(const Tensor *tensor)
+size_t
+Tensor_Rank(const Tensor* tensor)
 {
-    return tensor->ndim;
+    return tensor->shape.ndim;
 }
 
-size_t Tensor_Dimension(const Tensor *tensor, size_t axis)
+size_t
+Tensor_Dimension(
+    const Tensor* tensor,
+    size_t axis)
 {
-    if (axis >= tensor->ndim)
+    if (axis >= tensor->shape.ndim)
         return 0;
 
-    return tensor->shape[axis];
+    return tensor->shape.dims[axis];
 }
 
-float *Tensor_Data(const Tensor *tensor)
+/*==========================
+      Memory Access
+==========================*/
+
+void*
+Tensor_Data(
+    const Tensor* tensor)
 {
-    return (float *)tensor->storage->data;
+    return (char*)tensor->storage->data +
+           tensor->offset *
+           Tensor_ElementSize(tensor->dtype);
 }
 
-void Tensor_ComputeStrides(Tensor *tensor)
+/*==========================
+      Internal Helpers
+==========================*/
+
+void
+Tensor_ComputeStrides(
+    Tensor* tensor)
 {
-    tensor->strides = malloc(sizeof(size_t) * tensor->ndim);
+    Strides_Compute(
+        &tensor->strides,
+        &tensor->shape);
+}
 
-    tensor->strides[tensor->ndim - 1] = 1;
+/*==========================
+    Creation / Destruction
+==========================*/
 
-    for (int i = (int)tensor->ndim - 2; i >= 0; i--)
+Tensor*
+Tensor_Create(
+    size_t ndim,
+    const size_t* shape,
+    B_DataType dtype,
+    bool requires_grad)
+{
+    if (ndim > 0 && shape == NULL)
+        return NULL;
+
+    Tensor* tensor =
+        B_Malloc(sizeof(Tensor));
+
+    if (tensor == NULL)
+        return NULL;
+
+    tensor->shape = Shape_Create(ndim, shape);
+    tensor->strides = Strides_Create(ndim);
+
+    if (ndim > 0 &&
+        (tensor->shape.dims == NULL ||
+         tensor->strides.values == NULL))
     {
-        tensor->strides[i] =
-            tensor->strides[i + 1] * tensor->shape[i + 1];
+        Shape_Destroy(&tensor->shape);
+        Strides_Destroy(&tensor->strides);
+        B_Free(tensor);
+        return NULL;
     }
-}
 
-Tensor Tensor_Create(size_t ndim, const size_t *shape)
-{
-    Tensor tensor;
+    tensor->offset = 0;
+    tensor->dtype = dtype;
+    tensor->requires_grad = requires_grad;
 
-    tensor.ndim = ndim;
-    tensor.offset = 0;
+    Tensor_ComputeStrides(tensor);
 
-    tensor.shape = malloc(sizeof(size_t) * ndim);
-    memcpy(tensor.shape, shape, sizeof(size_t) * ndim);
+    tensor->storage =
+        Storage_Create(
+            Tensor_Numel(tensor) *
+            Tensor_ElementSize(dtype));
 
-    Tensor_ComputeStrides(&tensor);
-
-    size_t numel = Tensor_Numel(&tensor);
-
-    tensor.storage = Storage_Create(numel * sizeof(float));
+    if (tensor->storage == NULL)
+    {
+        Shape_Destroy(&tensor->shape);
+        Strides_Destroy(&tensor->strides);
+        B_Free(tensor);
+        return NULL;
+    }
 
     return tensor;
 }
 
-void Tensor_Destroy(Tensor *tensor)
+Tensor*
+Tensor_CreateScalar(
+    B_DataType dtype)
+{
+    return Tensor_Create(
+        0,
+        NULL,
+        dtype,
+        false);
+}
+
+void
+Tensor_Destroy(
+    Tensor* tensor)
 {
     if (tensor == NULL)
         return;
 
     Storage_Release(tensor->storage);
 
-    free(tensor->shape);
-    free(tensor->strides);
+    Shape_Destroy(&tensor->shape);
+    Strides_Destroy(&tensor->strides);
 
-    tensor->storage = NULL;
-    tensor->shape = NULL;
-    tensor->strides = NULL;
+    B_Free(tensor);
+}
 
-    tensor->ndim = 0;
-    tensor->offset = 0;
+/*==========================
+        Reductions
+==========================*/
+
+Tensor*
+Tensor_Sum(
+    const Tensor* tensor)
+{
+    if (tensor == NULL)
+        return NULL;
+
+    Tensor* result =
+        Tensor_CreateScalar(
+            tensor->dtype);
+
+    if (result == NULL)
+        return NULL;
+
+    TensorIterator* it =
+        Iterator_Create(tensor);
+
+    if (it == NULL)
+    {
+        Tensor_Destroy(result);
+        return NULL;
+    }
+
+    switch (tensor->dtype)
+    {
+        case B_FLOAT32:
+        {
+            double sum = 0.0;
+
+            while (Iterator_Next(it))
+            {
+                sum += *(float*)Iterator_Data(it);
+            }
+
+            *(float*)Tensor_Data(result) = (float)sum;
+            break;
+        }
+
+        case B_FLOAT64:
+        {
+            double sum = 0.0;
+
+            while (Iterator_Next(it))
+            {
+                sum += *(double*)Iterator_Data(it);
+            }
+
+            *(double*)Tensor_Data(result) = sum;
+            break;
+        }
+
+        default:
+        {
+            Iterator_Destroy(it);
+            Tensor_Destroy(result);
+            return NULL;
+        }
+    }
+
+    Iterator_Destroy(it);
+
+    return result;
 }
