@@ -131,4 +131,8 @@ void
 Tensor_ComputeStrides(
     Tensor* tensor);
 
+void
+Tensor_ComputeOffset(
+    Tensor* tensor);
+
 #endif

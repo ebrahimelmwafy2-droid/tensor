@@ -35,7 +35,14 @@ int Tensor_Equal(
 
 void Tensor_Print(
     const Tensor* tensor);
+Tensor* Tensor_Clone(const Tensor* tensor);
 
+int Tensor_Equal(
+    const Tensor* a,
+    const Tensor* b);
+
+void Tensor_Print(
+    const Tensor* tensor);
 #ifdef __cplusplus
 }
 #endif

@@ -1,5 +1,5 @@
 #include "utility.h"
-
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -273,4 +273,157 @@ float* data = (float*)ptr;
         default:
             return;
     }
+}
+Tensor* Tensor_Clone(const Tensor* tensor)
+{
+    return Tensor_Copy(tensor);
+}
+int Tensor_Equal(
+    const Tensor* a,
+    const Tensor* b)
+{
+    if (a == NULL || b == NULL)
+        return 0;
+
+    if (a->dtype != b->dtype)
+        return 0;
+
+    if (a->shape.ndim != b->shape.ndim)
+        return 0;
+
+    for (size_t i = 0; i < a->shape.ndim; ++i)
+    {
+        if (a->shape.dims[i] != b->shape.dims[i])
+            return 0;
+    }
+
+    size_t bytes =
+        Tensor_Numel(a) *
+        Tensor_ElementSize(a->dtype);
+
+    return memcmp(
+        Tensor_Data(a),
+        Tensor_Data(b),
+        bytes) == 0;
+}
+void Tensor_Print(const Tensor* tensor)
+{
+    if (tensor == NULL)
+    {
+        printf("Tensor(NULL)\n");
+        return;
+    }
+
+    size_t n = Tensor_Numel(tensor);
+
+    printf("[ ");
+
+    switch (tensor->dtype)
+    {
+        case B_FLOAT32:
+        {
+            float* data = (float*)Tensor_Data(tensor);
+
+            for (size_t i = 0; i < n; ++i)
+                printf("%f ", data[i]);
+
+            break;
+        }
+
+        case B_FLOAT64:
+        {
+            double* data = (double*)Tensor_Data(tensor);
+
+            for (size_t i = 0; i < n; ++i)
+                printf("%lf ", data[i]);
+
+            break;
+        }
+
+        case B_INT8:
+        {
+            int8_t* data = (int8_t*)Tensor_Data(tensor);
+
+            for (size_t i = 0; i < n; ++i)
+                printf("%d ", data[i]);
+
+            break;
+        }
+
+        case B_UINT8:
+        {
+            uint8_t* data = (uint8_t*)Tensor_Data(tensor);
+
+            for (size_t i = 0; i < n; ++i)
+                printf("%u ", data[i]);
+
+            break;
+        }
+
+        case B_INT16:
+        {
+            int16_t* data = (int16_t*)Tensor_Data(tensor);
+
+            for (size_t i = 0; i < n; ++i)
+                printf("%d ", data[i]);
+
+            break;
+        }
+
+        case B_UINT16:
+        {
+            uint16_t* data = (uint16_t*)Tensor_Data(tensor);
+
+            for (size_t i = 0; i < n; ++i)
+                printf("%u ", data[i]);
+
+            break;
+        }
+
+        case B_INT32:
+        {
+            int32_t* data = (int32_t*)Tensor_Data(tensor);
+
+            for (size_t i = 0; i < n; ++i)
+                printf("%d ", data[i]);
+
+            break;
+        }
+
+        case B_UINT32:
+        {
+            uint32_t* data = (uint32_t*)Tensor_Data(tensor);
+
+            for (size_t i = 0; i < n; ++i)
+                printf("%u ", data[i]);
+
+            break;
+        }
+
+        case B_INT64:
+        {
+            int64_t* data = (int64_t*)Tensor_Data(tensor);
+
+            for (size_t i = 0; i < n; ++i)
+                printf("%lld ", (long long)data[i]);
+
+            break;
+        }
+
+        case B_UINT64:
+        {
+            uint64_t* data = (uint64_t*)Tensor_Data(tensor);
+
+            for (size_t i = 0; i < n; ++i)
+                printf("%llu ", (unsigned long long)data[i]);
+
+            break;
+        }
+
+        default:
+            printf("Unsupported dtype");
+            break;
+    }
+
+    printf("]\n");
 }

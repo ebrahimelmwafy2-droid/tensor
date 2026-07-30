@@ -104,3 +104,23 @@ void Strides_Compute(Strides* strides, const Shape* shape)
             strides->values[i + 1] * shape->dims[i + 1];
     }
 }
+Shape Shape_Allocate(size_t ndim);
+Shape Shape_Allocate(size_t ndim)
+{
+    Shape shape;
+
+    shape.ndim = ndim;
+    shape.dims = NULL;
+
+    if (ndim == 0)
+        return shape;
+
+    shape.dims = (size_t*)malloc(sizeof(size_t) * ndim);
+
+    if (shape.dims == NULL)
+    {
+        shape.ndim = 0;
+    }
+
+    return shape;
+}

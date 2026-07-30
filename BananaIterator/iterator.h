@@ -1,5 +1,5 @@
 #include "iterator.h"
-
+#include "tensor.h"
 #include "memory.h"
 
 TensorIterator*
